@@ -60,6 +60,12 @@ func runAIRoute(path string, apiKey string) tea.Cmd {
 			}
 		}
 
+		// --- NEW CHECK HERE ---
+		if len(items) > 30 {
+			return doneMsg(fmt.Sprintf("Too many items (%d). Limit is 30. Try again in normal mode.", len(items)))
+		}
+		// ----------------------
+
 		if len(items) == 0 {
 			return doneMsg("No items found to organize.")
 		}
@@ -102,7 +108,6 @@ func runAIRoute(path string, apiKey string) tea.Cmd {
 				followUpPrompt := fmt.Sprintf(`I have an item named "%s".
 				Google search result says: "%s".
 				Based on this, which existing folder from previous list should it go to?
-				If it doesn't match any, move it to a new folder named Other.
 				Return ONLY raw JSON: {"moves": [{"file": "%s", "destination": "folder"}], "need_websearch": []}`,
 					unknownItem, title, unknownItem)
 
