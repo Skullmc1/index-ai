@@ -11,6 +11,32 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	borderColor = lipgloss.Color("63")
+	accentColor = lipgloss.Color("205")
+	textColor   = lipgloss.Color("252")
+
+	appStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(borderColor).
+			Padding(1, 2).
+			Margin(1, 1)
+
+	titleStyle = lipgloss.NewStyle().
+			Foreground(accentColor).
+			Bold(true).
+			Padding(0, 1).
+			Border(lipgloss.NormalBorder(), false, false, true, false).
+			BorderForeground(borderColor)
+
+	keyStyle = lipgloss.NewStyle().
+			Foreground(accentColor).
+			Bold(true)
+
+	textStyle = lipgloss.NewStyle().
+			Foreground(textColor)
+)
+
 type sessionState int
 
 const (
@@ -31,7 +57,7 @@ type mainModel struct {
 	targetPath  string
 	loadingTime int
 	logs        []string
-	finalMsg    string // Added to store the result message
+	finalMsg    string
 	err         error
 }
 
@@ -42,11 +68,13 @@ type doneMsg string
 func initialModel() mainModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(accentColor)
 
 	ti := textinput.New()
 	ti.Placeholder = "Enter path..."
 	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 40
 
 	return mainModel{
 		state:       statePreloading,
@@ -72,7 +100,6 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// If we are done, any key quits the app
 		if m.state == stateDone {
 			return m, tea.Quit
 		}
@@ -130,12 +157,15 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case progressMsg:
 		m.logs = append(m.logs, string(msg))
+		if len(m.logs) > 10 {
+			m.logs = m.logs[1:]
+		}
 		return m, nil
 
 	case doneMsg:
 		m.state = stateDone
-		m.finalMsg = string(msg) // Save the message
-		return m, nil            // Do NOT quit here; wait for user input
+		m.finalMsg = string(msg)
+		return m, nil
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -151,39 +181,49 @@ func (m mainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m mainModel) View() string {
-	var s string
+	var content string
 
 	switch m.state {
 	case statePreloading:
-		s = fmt.Sprintf("\n %s Initializing Index AI...\n", m.spinner.View())
+		content = fmt.Sprintf("\n %s %s\n", m.spinner.View(), textStyle.Render("Initializing Core..."))
 
 	case stateQuestion:
-		s = "\nDo you want to use AI features?\n\n[ Enter ] Yes (Gemini)\n[ N ] No (Normal)\n"
+		content = fmt.Sprintf("\n%s\n\n%s  Yes (Gemini AI)\n%s  No (Local Logic)\n",
+			textStyle.Render("Select Organization Method:"),
+			keyStyle.Render("[ Enter ]"),
+			keyStyle.Render("[ N ]    "))
 
 	case stateAPIKeyInput:
-		s = fmt.Sprintf("\nInput your API Key:\n\n%s\n", m.textInput.View())
+		content = fmt.Sprintf("\n%s\n\n%s\n",
+			textStyle.Render("Enter your Gemini API Key:"),
+			m.textInput.View())
 
 	case statePathInput:
-		s = fmt.Sprintf("\nWhere should we organize?\n\n%s\n", m.textInput.View())
+		content = fmt.Sprintf("\n%s\n\n%s\n",
+			textStyle.Render("Target Directory to Organize:"),
+			m.textInput.View())
 
 	case stateRunning:
-		s = fmt.Sprintf("\n %s Processing...\n\n", m.spinner.View())
+		logView := ""
 		for _, log := range m.logs {
-			s += fmt.Sprintf("> %s\n", log)
+			logView += fmt.Sprintf("%s %s\n", keyStyle.Render(">"), textStyle.Render(log))
 		}
+		content = fmt.Sprintf("\n %s %s\n\n%s", m.spinner.View(), textStyle.Render("Processing..."), logView)
 
 	case stateDone:
-		// Display the final message and wait
-		color := "205" // Pink for success
-		if len(m.finalMsg) > 5 && m.finalMsg[:5] == "Error" || m.finalMsg[:6] == "Failed" {
-			color = "196" // Red for error
+		color := accentColor
+		if len(m.finalMsg) > 5 && (m.finalMsg[:5] == "Error" || m.finalMsg[:6] == "Failed") {
+			color = lipgloss.Color("196")
 		}
 
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Bold(true)
-		s = fmt.Sprintf("\n%s\n\n[ Press any key to exit ]\n", style.Render(m.finalMsg))
+		resultStyle := lipgloss.NewStyle().Foreground(color).Bold(true).Width(50)
+		content = fmt.Sprintf("\n%s\n\n%s\n", resultStyle.Render(m.finalMsg), textStyle.Render("[ Press any key to exit ]"))
 	}
 
-	return lipgloss.NewStyle().Margin(1, 2).Render(s)
+	title := titleStyle.Render("INDEX AI")
+	ui := lipgloss.JoinVertical(lipgloss.Left, title, content)
+
+	return appStyle.Render(ui)
 }
 
 func main() {
