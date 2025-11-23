@@ -60,11 +60,9 @@ func runAIRoute(path string, apiKey string) tea.Cmd {
 			}
 		}
 
-		// --- NEW CHECK HERE ---
 		if len(items) > 30 {
 			return doneMsg(fmt.Sprintf("Too many items (%d). Limit is 30. Try again in normal mode.", len(items)))
 		}
-		// ----------------------
 
 		if len(items) == 0 {
 			return doneMsg("No items found to organize.")
