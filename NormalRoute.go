@@ -27,15 +27,29 @@ func runNormalRoute(path string) tea.Cmd {
 			return progressMsg(fmt.Sprintf("Error reading dir: %v", err))
 		}
 
-		var movedCount int
-		var searchCount int
-
+		var validItems []os.DirEntry
 		for _, entry := range entries {
 			name := entry.Name()
-
 			if strings.HasPrefix(name, ".") || name == "main.exe" || name == "main" {
 				continue
 			}
+			validItems = append(validItems, entry)
+		}
+
+		total := len(validItems)
+		if total == 0 {
+			return doneMsg("Nothing to organize.")
+		}
+
+		var movedCount int
+		var searchCount int
+		var summaryBuilder strings.Builder
+
+		summaryBuilder.WriteString(fmt.Sprintf("Found %d items to process.\n", total))
+
+		for i, entry := range validItems {
+			name := entry.Name()
+			current := i + 1
 
 			category := "Misc"
 			resolved := false
@@ -60,11 +74,18 @@ func runNormalRoute(path string) tea.Cmd {
 				err := performMove(path, name, category)
 				if err == nil {
 					movedCount++
+					summaryBuilder.WriteString(fmt.Sprintf("[%d/%d] Moved '%s' -> %s\n", current, total, name, category))
+				} else {
+					summaryBuilder.WriteString(fmt.Sprintf("[%d/%d] Failed to move '%s': %v\n", current, total, name, err))
 				}
+			} else {
+				summaryBuilder.WriteString(fmt.Sprintf("[%d/%d] Skipped '%s' (No category found)\n", current, total, name))
 			}
 		}
 
-		return doneMsg(fmt.Sprintf("Normal Scan Complete. Organized %d items. Performed %d web searches.", movedCount, searchCount))
+		summaryBuilder.WriteString(fmt.Sprintf("\nDone! Organized %d items. Web searches: %d.", movedCount, searchCount))
+
+		return doneMsg(summaryBuilder.String())
 	}
 }
 
